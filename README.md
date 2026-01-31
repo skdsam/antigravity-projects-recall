@@ -10,6 +10,12 @@ Project Tracker is a powerful extension designed to streamline your workspace ma
   - Real-time branch detection.
   - **Dirty State** indicators (unsaved changes marked with `*`).
   - **Change Badges**: See exactly how many files are modified (e.g., `[3]`) without opening the project.
+  - **☁️ GitHub Sync**:
+    - **Remote Status Detection**: Automatically shows if you are behind the GitHub remote with a `↓[count]` badge.
+    - **One-Click Pull**: Sync your projects instantly with the "Pull" button.
+- **🌍 External Repository Discovery**:
+  - **GitHub Inventory**: Browse your GitHub repositories (public and private) directly from the sidebar.
+  - **Instant Clone**: Clone and add remote repositories to your tracker with a single click.
 - **🎨 Visual Customization**: 
   - **Custom Icons**: Assign unique icons to distinguish between project types.
   - **Color Themes**: Use color-coded icons (Blue, Red, Green, etc.) for better visual organization.
@@ -42,6 +48,8 @@ Project Tracker is a powerful extension designed to streamline your workspace ma
 | `project-tracker.refreshList` | **Refresh** | Manually refresh the project list status. |
 | `project-tracker.setProjectIcon` | **Set Project Icon** | Choose a custom icon for the project. |
 | `project-tracker.setProjectColor` | **Set Project Color** | Choose a custom theme color for the icon. |
+| `project-tracker.pullProject` | **Pull Updates** | Pull changes from the GitHub remote. |
+| `project-tracker.signInGitHub` | **Sign in to GitHub** | Authenticate with GitHub to enable sync and discovery features. |
 
 ## 🤝 MCP Server Integration
 

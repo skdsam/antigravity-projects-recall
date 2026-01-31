@@ -2,7 +2,7 @@
   "name": "project-tracker",
   "displayName": "Project Tracker",
   "description": "Automatically track recent projects with advanced Git integration, pinning, and custom icons.",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "publisher": "skdsam",
   "icon": "assets/icon.png",
   "engines": {
@@ -95,6 +95,21 @@
       {
         "command": "project-tracker.checkForUpdate",
         "title": "Check for Updates"
+      },
+      {
+        "command": "project-tracker.pullProject",
+        "title": "Pull Updates",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "project-tracker.cloneRepository",
+        "title": "Clone Repository",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "project-tracker.signInGitHub",
+        "title": "Sign in to GitHub",
+        "icon": "$(github)"
       }
     ],
     "menus": {
@@ -113,6 +128,11 @@
           "command": "project-tracker.searchProjects",
           "group": "navigation",
           "when": "view == projectList"
+        },
+        {
+          "command": "project-tracker.signInGitHub",
+          "group": "navigation",
+          "when": "view == projectList"
         }
       ],
       "view/item/context": [
@@ -129,22 +149,27 @@
         {
           "command": "project-tracker.pinProject",
           "group": "inline",
-          "when": "view == projectList && viewItem == project"
+          "when": "view == projectList && viewItem =~ /project(-behind)?$/"
         },
         {
           "command": "project-tracker.unpinProject",
           "group": "inline",
-          "when": "view == projectList && viewItem == projectPinned"
+          "when": "view == projectList && viewItem =~ /projectPinned(-behind)?$/"
         },
         {
           "command": "project-tracker.setProjectIcon",
           "group": "1_modification",
-          "when": "view == projectList && (viewItem == project || viewItem == projectPinned)"
+          "when": "view == projectList && viewItem =~ /project(Pinned)?(-behind)?$/"
         },
         {
           "command": "project-tracker.setProjectColor",
           "group": "1_modification",
-          "when": "view == projectList && (viewItem == project || viewItem == projectPinned)"
+          "when": "view == projectList && viewItem =~ /project(Pinned)?(-behind)?$/"
+        },
+        {
+          "command": "project-tracker.pullProject",
+          "group": "inline",
+          "when": "view == projectList && viewItem =~ /project(Pinned)?-behind$/"
         }
       ]
     }

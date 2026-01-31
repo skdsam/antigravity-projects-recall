@@ -30,6 +30,68 @@ function activate(context) {
         }
     }
 
+    let cachedSession = null;
+    async function getGitHubSession(silent = true) {
+        if (cachedSession && silent) return cachedSession;
+        try {
+            const session = await vscode.authentication.getSession('github', ['repo', 'user'], {
+                createIfNone: !silent
+            });
+            cachedSession = session;
+            return session;
+        } catch (e) {
+            console.error('Project Tracker: GitHub session error', e);
+            return null;
+        }
+    }
+
+    // Cache for git behind status to avoid excessive fetching
+    const gitStatusCache = new Map();
+    const STATUS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+    async function fetchGitHubRepos() {
+        const session = await getGitHubSession();
+        if (!session) return [];
+
+        return new Promise((resolve, reject) => {
+            const options = {
+                hostname: 'api.github.com',
+                path: '/user/repos?sort=updated&per_page=50',
+                method: 'GET',
+                headers: {
+                    'Authorization': `token ${session.accessToken}`,
+                    'User-Agent': 'vscode-project-tracker'
+                }
+            };
+
+            const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const repos = JSON.parse(data);
+                        if (Array.isArray(repos)) {
+                            resolve(repos.map(r => ({
+                                name: r.name,
+                                fullName: r.full_name,
+                                url: r.clone_url,
+                                description: r.description,
+                                private: r.private
+                            })));
+                        } else {
+                            resolve([]);
+                        }
+                    } catch (e) {
+                        resolve([]);
+                    }
+                });
+            });
+
+            req.on('error', (e) => resolve([]));
+            req.end();
+        });
+    }
+
     function saveProjects(projects) {
         if (!fs.existsSync(path.dirname(storagePath))) {
             fs.mkdirSync(path.dirname(storagePath), {
@@ -54,21 +116,70 @@ function activate(context) {
 
     async function checkGitStatus(projectPath) {
         try {
+            // Check for local changes
             const {
-                stdout
+                stdout: statusStdout
             } = await execAsync('git status --porcelain', {
                 cwd: projectPath,
                 timeout: 2000
             });
-            const lines = stdout.trim().split('\n').filter(l => l.trim().length > 0);
+            const lines = statusStdout.trim().split('\n').filter(l => l.trim().length > 0);
+
+            // Check if behind remote
+            let isBehind = false;
+            let behindCount = 0;
+
+            const cacheKey = projectPath;
+            const cached = gitStatusCache.get(cacheKey);
+            const now = Date.now();
+
+            if (cached && (now - cached.timestamp < STATUS_CACHE_TTL)) {
+                isBehind = cached.isBehind;
+                behindCount = cached.behindCount;
+            } else {
+                try {
+                    // Fetch in background to update remote tracking branches
+                    await execAsync('git fetch', {
+                        cwd: projectPath,
+                        timeout: 5000
+                    });
+                    const {
+                        stdout: revStdout
+                    } = await execAsync('git rev-list --count HEAD..@{u}', {
+                        cwd: projectPath,
+                        timeout: 2000
+                    });
+                    behindCount = parseInt(revStdout.trim()) || 0;
+                    isBehind = behindCount > 0;
+
+                    gitStatusCache.set(cacheKey, {
+                        isBehind,
+                        behindCount,
+                        timestamp: now
+                    });
+                } catch (e) {
+                    // Ignore errors (e.g., no upstream, no internet)
+                    // But store a temporary "not behind" to avoid hammering failing remotes
+                    gitStatusCache.set(cacheKey, {
+                        isBehind: false,
+                        behindCount: 0,
+                        timestamp: now - (STATUS_CACHE_TTL / 2) // Cache for 5 mins instead of 10
+                    });
+                }
+            }
+
             return {
                 isDirty: lines.length > 0,
-                count: lines.length
+                count: lines.length,
+                isBehind,
+                behindCount
             };
         } catch (e) {
             return {
                 isDirty: false,
-                count: 0
+                count: 0,
+                isBehind: false,
+                behindCount: 0
             };
         }
     }
@@ -138,6 +249,8 @@ function activate(context) {
             files: [],
             isDirty: false,
             gitDiffCount: 0,
+            isBehind: false,
+            behindCount: 0,
             sparkline: "",
             contributors: []
         };
@@ -148,6 +261,8 @@ function activate(context) {
                 const gitStatus = await checkGitStatus(projectPath);
                 metadata.isDirty = gitStatus.isDirty;
                 metadata.gitDiffCount = gitStatus.count;
+                metadata.isBehind = gitStatus.isBehind;
+                metadata.behindCount = gitStatus.behindCount;
                 metadata.sparkline = await getGitActivity(projectPath);
                 metadata.contributors = await getTopContributors(projectPath);
 
@@ -213,13 +328,36 @@ function activate(context) {
                     return new Date(b.lastAccessed) - new Date(a.lastAccessed);
                 });
 
-                const items = await Promise.all(projects.map(async p => {
+                const items = [];
+
+                try {
+                    const session = await getGitHubSession(true);
+                    if (session) {
+                        const githubSection = new ProjectItem('Available on GitHub', vscode.TreeItemCollapsibleState.Collapsed, null, 'section');
+                        githubSection.iconPath = new vscode.ThemeIcon('github');
+                        githubSection.contextValue = 'githubSection';
+                        items.push(githubSection);
+                    } else {
+                        const signInItem = new ProjectItem('Sign in to GitHub...', vscode.TreeItemCollapsibleState.None, null, 'auth');
+                        signInItem.iconPath = new vscode.ThemeIcon('github');
+                        signInItem.command = {
+                            command: 'project-tracker.signInGitHub',
+                            title: 'Sign in to GitHub'
+                        };
+                        signInItem.contextValue = 'signInItem';
+                        items.push(signInItem);
+                    }
+                } catch (e) {
+                    console.error('Project Tracker: Error in getChildren session check', e);
+                }
+
+                const projectItems = await Promise.all(projects.map(async p => {
                     const exists = fs.existsSync(p.path);
                     const relTime = getRelativeTimeString(p.lastAccessed);
                     const metadata = exists ? await getProjectMetadata(p.path) : null;
 
-                    const labelTitle = (exists && metadata && metadata.gitDiffCount > 0) ?
-                        `${p.name} [${metadata.gitDiffCount}]` :
+                    const labelTitle = (exists && metadata && (metadata.gitDiffCount > 0 || metadata.isBehind)) ?
+                        `${p.name}${metadata.gitDiffCount > 0 ? ` [${metadata.gitDiffCount}]` : ''}${metadata.isBehind ? ` ↓${metadata.behindCount}` : ''}` :
                         p.name;
 
                     // Determine type icon
@@ -264,7 +402,12 @@ function activate(context) {
 
                     item.description = exists ? description.join(' • ') : `(Missing) ${relTime}`;
                     item.tooltip = exists ? `${p.pinned ? '📌 ' : ''}${p.name}\n${p.path}` : `${p.name} (Missing)\n${p.path}`;
-                    item.contextValue = exists ? (p.pinned ? 'projectPinned' : 'project') : 'invalid-project';
+
+                    let contextValue = exists ? (p.pinned ? 'projectPinned' : 'project') : 'invalid-project';
+                    if (exists && metadata && metadata.isBehind) {
+                        contextValue += '-behind';
+                    }
+                    item.contextValue = contextValue;
 
                     item.command = {
                         command: 'project-tracker.openProject',
@@ -275,6 +418,7 @@ function activate(context) {
                     return item;
                 }));
 
+                items.push(...projectItems);
                 return items;
             }
 
@@ -318,6 +462,35 @@ function activate(context) {
                 return children;
             }
 
+            if (element.type === 'section') {
+                if (element.label === 'Available on GitHub') {
+                    const repos = await fetchGitHubRepos();
+                    const projects = getProjects() || [];
+                    const localNames = projects.map(p => p.name.toLowerCase());
+
+                    const externalRepos = repos.filter(r => !localNames.includes(r.name.toLowerCase()));
+
+                    return externalRepos.map(r => {
+                        const item = new ProjectItem(
+                            r.name,
+                            vscode.TreeItemCollapsibleState.None,
+                            r.url,
+                            'external-repo'
+                        );
+                        item.description = r.private ? '🔒 Private' : '🌐 Public';
+                        item.tooltip = r.description || r.fullName;
+                        item.iconPath = new vscode.ThemeIcon('github');
+                        item.contextValue = 'external-repo';
+                        item.command = {
+                            command: 'project-tracker.cloneRepository',
+                            title: 'Clone Repository',
+                            arguments: [r]
+                        };
+                        return item;
+                    });
+                }
+            }
+
             if (element.type === 'team') {
                 return element.contributors.map(c => {
                     const item = new ProjectItem(c, vscode.TreeItemCollapsibleState.None);
@@ -325,6 +498,7 @@ function activate(context) {
                     return item;
                 });
             }
+
             return [];
         }
     }
@@ -377,6 +551,80 @@ function activate(context) {
             return;
         }
         vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(projectPath), true);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('project-tracker.pullProject', async (item) => {
+        const projectPath = item.projectPath;
+        if (!projectPath || !fs.existsSync(projectPath)) return;
+
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Pulling updates for ${path.basename(projectPath)}`,
+            cancellable: false
+        }, async (progress) => {
+            try {
+                await execAsync('git pull', {
+                    cwd: projectPath,
+                    timeout: 30000
+                });
+                vscode.window.showInformationMessage(`Successfully pulled updates for ${path.basename(projectPath)}`);
+                projectDataProvider.refresh();
+            } catch (e) {
+                vscode.window.showErrorMessage(`Failed to pull updates: ${e.message}`);
+            }
+        });
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('project-tracker.cloneRepository', async (repo) => {
+        const result = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select Folder to Clone Into'
+        });
+
+        if (result && result[0]) {
+            const parentPath = result[0].fsPath;
+            const projectPath = path.join(parentPath, repo.name);
+
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Cloning ${repo.fullName}...`,
+                cancellable: false
+            }, async (progress) => {
+                try {
+                    await execAsync(`git clone ${repo.url}`, {
+                        cwd: parentPath,
+                        timeout: 60000
+                    });
+
+                    let projects = getProjects() || [];
+                    projects.unshift({
+                        name: repo.name,
+                        path: projectPath,
+                        lastAccessed: new Date().toISOString(),
+                        pinned: false
+                    });
+                    saveProjects(projects.slice(0, 50));
+                    projectDataProvider.refresh();
+
+                    const open = await vscode.window.showInformationMessage(`Cloned ${repo.name} successfullly. Open now?`, 'Yes', 'No');
+                    if (open === 'Yes') {
+                        vscode.commands.executeCommand('project-tracker.openProject', projectPath);
+                    }
+                } catch (e) {
+                    vscode.window.showErrorMessage(`Failed to clone ${repo.name}: ${e.message}`);
+                }
+            });
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('project-tracker.signInGitHub', async () => {
+        const session = await getGitHubSession(false);
+        if (session) {
+            vscode.window.showInformationMessage(`Signed in as ${session.account.label}`);
+            projectDataProvider.refresh();
+        }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('project-tracker.searchProjects', async () => {
