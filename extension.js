@@ -117,60 +117,55 @@ function activate(context) {
     async function checkGitStatus(projectPath) {
         try {
             // Check for local changes
-            const {
-                stdout: statusStdout
-            } = await execAsync('git status --porcelain', {
-                cwd: projectPath,
-                timeout: 2000
-            });
-            const lines = statusStdout.trim().split('\n').filter(l => l.trim().length > 0);
-
-            // Check if behind remote
-            let isBehind = false;
-            let behindCount = 0;
-
+            // Fetch in background to update remote tracking branches
             const cacheKey = projectPath;
             const cached = gitStatusCache.get(cacheKey);
             const now = Date.now();
 
-            if (cached && (now - cached.timestamp < STATUS_CACHE_TTL)) {
-                isBehind = cached.isBehind;
-                behindCount = cached.behindCount;
-            } else {
+            if (!cached || (now - cached.timestamp >= STATUS_CACHE_TTL)) {
                 try {
-                    // Fetch in background to update remote tracking branches
                     await execAsync('git fetch', {
                         cwd: projectPath,
-                        timeout: 5000
-                    });
-                    const {
-                        stdout: revStdout
-                    } = await execAsync('git rev-list --count HEAD..@{u}', {
-                        cwd: projectPath,
-                        timeout: 2000
-                    });
-                    behindCount = parseInt(revStdout.trim()) || 0;
-                    isBehind = behindCount > 0;
-
-                    gitStatusCache.set(cacheKey, {
-                        isBehind,
-                        behindCount,
-                        timestamp: now
+                        timeout: 15000 // Increased timeout for slower connections
                     });
                 } catch (e) {
-                    // Ignore errors (e.g., no upstream, no internet)
-                    // But store a temporary "not behind" to avoid hammering failing remotes
-                    gitStatusCache.set(cacheKey, {
-                        isBehind: false,
-                        behindCount: 0,
-                        timestamp: now - (STATUS_CACHE_TTL / 2) // Cache for 5 mins instead of 10
-                    });
+                    console.error(`Project Tracker: Fetch failed for ${projectPath}`, e.message);
                 }
             }
 
+            // use git status -sb which is much faster and provides sync info
+            const {
+                stdout: statusStdout
+            } = await execAsync('git status -sb --porcelain', {
+                cwd: projectPath,
+                timeout: 3000
+            });
+
+            const lines = statusStdout.trim().split('\n');
+            const branchLine = lines[0]; // e.g. "## main...origin/main [behind 1]"
+            const fileLines = lines.slice(1).filter(l => l.trim().length > 0);
+
+            let isBehind = false;
+            let behindCount = 0;
+
+            if (branchLine.includes('behind')) {
+                const match = branchLine.match(/behind (\d+)/);
+                if (match) {
+                    behindCount = parseInt(match[1]);
+                    isBehind = true;
+                }
+            }
+
+            // Update cache after actual check
+            gitStatusCache.set(cacheKey, {
+                isBehind,
+                behindCount,
+                timestamp: now
+            });
+
             return {
-                isDirty: lines.length > 0,
-                count: lines.length,
+                isDirty: fileLines.length > 0,
+                count: fileLines.length,
                 isBehind,
                 behindCount
             };
