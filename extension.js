@@ -294,7 +294,38 @@ function activate(context) {
         constructor(label, collapsibleState, projectPath, type = 'project') {
             super(label, collapsibleState);
             this.projectPath = projectPath;
+            this.resourceUri = projectPath ? vscode.Uri.file(projectPath) : undefined;
             this.type = type;
+        }
+    }
+
+    class ProjectDecorationProvider {
+        constructor() {
+            this._onDidChangeFileDecorations = new vscode.EventEmitter();
+            this.onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
+        }
+
+        refresh() {
+            this._onDidChangeFileDecorations.fire(undefined);
+        }
+
+        provideFileDecoration(uri) {
+            const projects = getProjects();
+            if (!projects) return undefined;
+
+            const project = projects.find(p => p.path.toLowerCase() === uri.fsPath.toLowerCase());
+            if (!project) return undefined;
+
+            const cache = gitStatusCache.get(project.path);
+            if (cache && cache.isBehind) {
+                return {
+                    badge: `↓${cache.behindCount > 0 ? cache.behindCount : ''}`,
+                    tooltip: `Behind remote by ${cache.behindCount} commit(s)`,
+                    color: new vscode.ThemeColor('errorForeground'),
+                    propagate: false
+                };
+            }
+            return undefined;
         }
     }
 
@@ -306,6 +337,7 @@ function activate(context) {
 
         refresh() {
             this._onDidChangeTreeData.fire();
+            projectDecorationProvider.refresh();
         }
 
         getTreeItem(element) {
@@ -351,8 +383,8 @@ function activate(context) {
                     const relTime = getRelativeTimeString(p.lastAccessed);
                     const metadata = exists ? await getProjectMetadata(p.path) : null;
 
-                    const labelTitle = (exists && metadata && (metadata.gitDiffCount > 0 || metadata.isBehind)) ?
-                        `${p.name}${metadata.gitDiffCount > 0 ? ` [${metadata.gitDiffCount}]` : ''}${metadata.isBehind ? ` ↓${metadata.behindCount}` : ''}` :
+                    const labelTitle = (exists && metadata && metadata.gitDiffCount > 0) ?
+                        `${p.name} [${metadata.gitDiffCount}]` :
                         p.name;
 
                     // Determine type icon
@@ -503,6 +535,9 @@ function activate(context) {
 
     const projectDataProvider = new ProjectDataProvider();
     vscode.window.registerTreeDataProvider('projectList', projectDataProvider);
+
+    const projectDecorationProvider = new ProjectDecorationProvider();
+    context.subscriptions.push(vscode.window.registerFileDecorationProvider(projectDecorationProvider));
 
     function trackCurrentFolders() {
         const folders = vscode.workspace.workspaceFolders;

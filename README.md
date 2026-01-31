@@ -11,8 +11,8 @@ Project Tracker is a powerful extension designed to streamline your workspace ma
   - **Dirty State** indicators (unsaved changes marked with `*`).
   - **Change Badges**: See exactly how many files are modified (e.g., `[3]`) without opening the project.
   - **☁️ GitHub Sync**:
-    - **Remote Status Detection**: Automatically shows if you are behind the GitHub remote with a `↓[count]` badge.
-    - **🔴 Visual Alert**: The project icon turns **Red** when updates are available, so you never miss a sync.
+    - **Remote Status Detection**: Automatically shows if you are behind the GitHub remote with a badge.
+    - **🔴 Red Sync Badge**: A native red `↓` badge appears on the right side of the project entry when updates are available, making it instantly recognizable.
     - **One-Click Pull**: Sync your projects instantly with the "Pull" button.
 - **🌍 External Repository Discovery**:
   - **GitHub Inventory**: Browse your GitHub repositories (public and private) directly from the sidebar.
