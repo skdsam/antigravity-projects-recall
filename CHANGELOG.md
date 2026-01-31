@@ -2,6 +2,21 @@
 
 All notable changes to the "antigravity-project-tracker" extension will be documented in this file.
 
+## [1.1.12]
+- Fixed default clone directory to point to the scratch folder.
+- Made the scratch folder path dynamic (portable across different users).
+- Suppressed persistent update notifications.
+
+## [1.1.11]
+- Implemented "Red" native sync.
+- Improved status badges and label cleanup.
+
+## [1.1.10]
+- Optimized status detection and UI enhancements.
+
+## [1.1.9]
+- General bug fixes and performance improvements.
+
 ## [1.1.8]
 - Added advanced Git integration with real-time status tracking.
 - Implemented visual sparklines for commit activity over the last 7 days.
