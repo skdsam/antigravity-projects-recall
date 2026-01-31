@@ -613,11 +613,13 @@ function activate(context) {
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('project-tracker.cloneRepository', async (repo) => {
+        const scratchPath = path.join(process.env.USERPROFILE, '.gemini', 'antigravity', 'scratch');
         const result = await vscode.window.showOpenDialog({
             canSelectFiles: false,
             canSelectFolders: true,
             canSelectMany: false,
-            openLabel: 'Select Folder to Clone Into'
+            openLabel: 'Select Folder to Clone Into',
+            defaultUri: vscode.Uri.file(scratchPath)
         });
 
         if (result && result[0]) {
