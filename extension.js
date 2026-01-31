@@ -163,6 +163,10 @@ function activate(context) {
                 timestamp: now
             });
 
+            if (typeof projectDecorationProvider !== 'undefined') {
+                projectDecorationProvider.refresh(vscode.Uri.file(projectPath));
+            }
+
             return {
                 isDirty: fileLines.length > 0,
                 count: fileLines.length,
@@ -305,8 +309,8 @@ function activate(context) {
             this.onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
         }
 
-        refresh() {
-            this._onDidChangeFileDecorations.fire(undefined);
+        refresh(uri) {
+            this._onDidChangeFileDecorations.fire(uri);
         }
 
         provideFileDecoration(uri) {
@@ -577,7 +581,13 @@ function activate(context) {
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => trackCurrentFolders()));
 
     context.subscriptions.push(vscode.commands.registerCommand('project-tracker.refreshList', () => {
-        gitStatusCache.clear();
+        // Mark cache as stale but keep old data to prevent flickering
+        for (const key of gitStatusCache.keys()) {
+            const entry = gitStatusCache.get(key);
+            if (entry) {
+                entry.timestamp = 0;
+            }
+        }
         projectDataProvider.refresh();
     }));
 

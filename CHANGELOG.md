@@ -2,6 +2,10 @@
 
 All notable changes to the "antigravity-project-tracker" extension will be documented in this file.
 
+## [1.1.13]
+- Fixed issue where repository "behind" badges would disappear during refresh.
+- Improved UI stability by preserving status cache until new data is fetched.
+
 ## [1.1.12]
 - Fixed default clone directory to point to the scratch folder.
 - Made the scratch folder path dynamic (portable across different users).
