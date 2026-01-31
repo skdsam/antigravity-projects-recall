@@ -543,7 +543,10 @@ function activate(context) {
     trackCurrentFolders();
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => trackCurrentFolders()));
 
-    context.subscriptions.push(vscode.commands.registerCommand('project-tracker.refreshList', () => projectDataProvider.refresh()));
+    context.subscriptions.push(vscode.commands.registerCommand('project-tracker.refreshList', () => {
+        gitStatusCache.clear();
+        projectDataProvider.refresh();
+    }));
 
     context.subscriptions.push(vscode.commands.registerCommand('project-tracker.openProject', (projectPath) => {
         if (!fs.existsSync(projectPath)) {
