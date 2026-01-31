@@ -2,6 +2,13 @@
 
 All notable changes to the "antigravity-project-tracker" extension will be documented in this file.
 
+## [1.1.14]
+- Added Branch Management features.
+- Support for listing remote branches in "Available on GitHub" section.
+- Support for cloning specific branches from GitHub.
+- Support for listing and switching local branches for tracked projects.
+- Added "dirty check" when switching branches to prevent accidental data loss.
+
 ## [1.1.13]
 - Fixed issue where repository "behind" badges would disappear during refresh.
 - Improved UI stability by preserving status cache until new data is fetched.

@@ -92,6 +92,43 @@ function activate(context) {
         });
     }
 
+    async function fetchGitHubBranches(repoFullName) {
+        const session = await getGitHubSession();
+        if (!session) return [];
+
+        return new Promise((resolve, reject) => {
+            const options = {
+                hostname: 'api.github.com',
+                path: `/repos/${repoFullName}/branches?per_page=100`,
+                method: 'GET',
+                headers: {
+                    'Authorization': `token ${session.accessToken}`,
+                    'User-Agent': 'vscode-project-tracker'
+                }
+            };
+
+            const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const branches = JSON.parse(data);
+                        if (Array.isArray(branches)) {
+                            resolve(branches.map(b => b.name));
+                        } else {
+                            resolve([]);
+                        }
+                    } catch (e) {
+                        resolve([]);
+                    }
+                });
+            });
+
+            req.on('error', (e) => resolve([]));
+            req.end();
+        });
+    }
+
     function saveProjects(projects) {
         if (!fs.existsSync(path.dirname(storagePath))) {
             fs.mkdirSync(path.dirname(storagePath), {
@@ -180,6 +217,39 @@ function activate(context) {
                 isBehind: false,
                 behindCount: 0
             };
+        }
+    }
+
+    async function getLocalBranches(projectPath) {
+        try {
+            // Get both local and remote branches
+            const {
+                stdout
+            } = await execAsync('git branch -a --no-color', {
+                cwd: projectPath,
+                timeout: 5000
+            });
+
+            const lines = stdout.trim().split('\n');
+            const branches = lines.map(line => {
+                const name = line.replace('*', '').trim();
+                const isCurrent = line.startsWith('*');
+                const isRemote = name.startsWith('remotes/');
+
+                // Clean up remote names (e.g., remotes/origin/main -> origin/main)
+                const cleanName = isRemote ? name.replace('remotes/', '') : name;
+
+                return {
+                    name: cleanName,
+                    isCurrent,
+                    isRemote
+                };
+            }).filter(b => !b.name.includes('HEAD ->')); // Skip HEAD pointers
+
+            return branches;
+        } catch (e) {
+            console.error('Error getting branches:', e);
+            return [];
         }
     }
 
@@ -467,6 +537,11 @@ function activate(context) {
                     children.push(branchItem);
                 }
 
+                // Add Branches section
+                const branchesItem = new ProjectItem('Branches', vscode.TreeItemCollapsibleState.Collapsed, element.projectPath, 'local-branch-list');
+                branchesItem.iconPath = new vscode.ThemeIcon('git-merge');
+                children.push(branchesItem);
+
                 if (metadata.contributors && metadata.contributors.length > 0) {
                     const teamItem = new ProjectItem(`Top Contributors`, vscode.TreeItemCollapsibleState.Collapsed);
                     teamItem.iconPath = new vscode.ThemeIcon('organization');
@@ -507,10 +582,11 @@ function activate(context) {
                     return externalRepos.map(r => {
                         const item = new ProjectItem(
                             r.name,
-                            vscode.TreeItemCollapsibleState.None,
+                            vscode.TreeItemCollapsibleState.Collapsed,
                             r.url,
                             'external-repo'
                         );
+                        item.repoFullName = r.fullName;
                         item.description = r.private ? '🔒 Private' : '🌐 Public';
                         item.tooltip = r.description || r.fullName;
                         item.iconPath = new vscode.ThemeIcon('github');
@@ -523,6 +599,46 @@ function activate(context) {
                         return item;
                     });
                 }
+            }
+
+            if (element.type === 'external-repo') {
+                const branches = await fetchGitHubBranches(element.repoFullName);
+                return branches.map(branchName => {
+                    const item = new ProjectItem(branchName, vscode.TreeItemCollapsibleState.None);
+                    item.iconPath = new vscode.ThemeIcon('git-branch');
+                    item.contextValue = 'remote-branch';
+                    item.repoUrl = element.projectPath;
+                    item.repoName = element.label;
+                    item.branchName = branchName;
+                    item.command = {
+                        command: 'project-tracker.cloneRepository',
+                        title: 'Clone Branch',
+                        arguments: [{
+                            name: item.repoName,
+                            url: item.repoUrl,
+                            branch: branchName
+                        }]
+                    };
+                    return item;
+                });
+            }
+
+            if (element.type === 'local-branch-list') {
+                const branches = await getLocalBranches(element.projectPath);
+                return branches.map(b => {
+                    const label = b.isCurrent ? `* ${b.name}` : b.name;
+                    const item = new ProjectItem(label, vscode.TreeItemCollapsibleState.None);
+                    item.iconPath = new vscode.ThemeIcon('git-branch');
+                    item.contextValue = b.isRemote ? 'local-branch-remote' : 'local-branch';
+                    item.branchName = b.name;
+                    item.projectPath = element.projectPath;
+                    item.command = {
+                        command: 'project-tracker.switchBranch',
+                        title: 'Switch Branch',
+                        arguments: [element.projectPath, b.name]
+                    };
+                    return item;
+                });
             }
 
             if (element.type === 'team') {
@@ -622,6 +738,41 @@ function activate(context) {
         });
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('project-tracker.switchBranch', async (projectPath, branchName) => {
+        if (!projectPath || !branchName) return;
+
+        // Clean up branch name in case it has '*'
+        const cleanBranch = branchName.replace('*', '').trim();
+
+        // Dirty check
+        const metadata = await checkGitStatus(projectPath);
+        if (metadata.isDirty) {
+            const result = await vscode.window.showWarningMessage(
+                `Working directory is dirty. Switching to "${cleanBranch}" may cause data loss or conflicts. Proceed?`,
+                'Switch Anyway', 'Cancel'
+            );
+            if (result !== 'Switch Anyway') return;
+        }
+
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Switching to branch ${cleanBranch}...`,
+            cancellable: false
+        }, async (progress) => {
+            try {
+                await execAsync(`git checkout ${cleanBranch}`, {
+                    cwd: projectPath,
+                    timeout: 10000
+                });
+                gitStatusCache.clear();
+                projectDataProvider.refresh();
+                vscode.window.showInformationMessage(`Switched to branch: ${cleanBranch}`);
+            } catch (e) {
+                vscode.window.showErrorMessage(`Failed to switch branch: ${e.message}`);
+            }
+        });
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('project-tracker.cloneRepository', async (repo) => {
         const scratchPath = path.join(process.env.USERPROFILE, '.gemini', 'antigravity', 'scratch');
         const result = await vscode.window.showOpenDialog({
@@ -642,7 +793,8 @@ function activate(context) {
                 cancellable: false
             }, async (progress) => {
                 try {
-                    await execAsync(`git clone ${repo.url}`, {
+                    const branchArg = repo.branch ? `-b ${repo.branch}` : '';
+                    await execAsync(`git clone ${branchArg} ${repo.url}`, {
                         cwd: parentPath,
                         timeout: 60000
                     });
@@ -657,7 +809,7 @@ function activate(context) {
                     saveProjects(projects.slice(0, 50));
                     projectDataProvider.refresh();
 
-                    const open = await vscode.window.showInformationMessage(`Cloned ${repo.name} successfullly. Open now?`, 'Yes', 'No');
+                    const open = await vscode.window.showInformationMessage(`Cloned ${repo.name} (${repo.branch || 'default'}) successfullly. Open now?`, 'Yes', 'No');
                     if (open === 'Yes') {
                         vscode.commands.executeCommand('project-tracker.openProject', projectPath);
                     }
