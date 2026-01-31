@@ -378,7 +378,10 @@ function activate(context) {
                     }
 
                     if (!exists) typeIcon = 'error';
-                    const iconColor = p.color ? new vscode.ThemeColor(p.color) : undefined;
+                    let iconColor = p.color ? new vscode.ThemeColor(p.color) : undefined;
+                    if (exists && metadata && metadata.isBehind && !p.color) {
+                        iconColor = new vscode.ThemeColor('errorForeground');
+                    }
 
                     // Always use the type icon as the primary icon.
                     // If pinned, we add a pin emoji to the label for visual distinction.
@@ -570,6 +573,7 @@ function activate(context) {
                     cwd: projectPath,
                     timeout: 30000
                 });
+                gitStatusCache.clear();
                 vscode.window.showInformationMessage(`Successfully pulled updates for ${path.basename(projectPath)}`);
                 projectDataProvider.refresh();
             } catch (e) {
