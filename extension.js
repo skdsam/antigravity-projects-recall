@@ -744,15 +744,17 @@ function activate(context) {
         // Clean up branch name in case it has '*'
         const cleanBranch = branchName.replace('*', '').trim();
 
-        // Dirty check
+        // Always show confirmation to prevent accidental clicks
         const metadata = await checkGitStatus(projectPath);
-        if (metadata.isDirty) {
-            const result = await vscode.window.showWarningMessage(
-                `Working directory is dirty. Switching to "${cleanBranch}" may cause data loss or conflicts. Proceed?`,
-                'Switch Anyway', 'Cancel'
-            );
-            if (result !== 'Switch Anyway') return;
-        }
+        const msg = metadata.isDirty ?
+            `Working directory is dirty. Switching to "${cleanBranch}" may cause data loss or conflicts. Proceed?` :
+            `Switch project to branch "${cleanBranch}"?`;
+        const confirmAction = metadata.isDirty ? 'Switch Anyway' : 'Switch Branch';
+
+        const result = await vscode.window.showWarningMessage(msg, {
+            modal: true
+        }, confirmAction);
+        if (result !== confirmAction) return;
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,

@@ -2,6 +2,10 @@
 
 All notable changes to the "antigravity-project-tracker" extension will be documented in this file.
 
+## [1.1.15]
+- Added mandatory confirmation prompt for all branch switches to prevent accidental clicks.
+- Improved switch branch warning logic for dirty workspaces.
+
 ## [1.1.14]
 - Added Branch Management features.
 - Support for listing remote branches in "Available on GitHub" section.
