@@ -1,0 +1,166 @@
+{
+  "name": "project-tracker",
+  "displayName": "Project Tracker",
+  "description": "Automatically track recent projects with advanced Git integration, pinning, and custom icons.",
+  "version": "1.1.8",
+  "publisher": "skdsam",
+  "icon": "assets/icon.png",
+  "engines": {
+    "vscode": "^1.73.0"
+  },
+  "keywords": [
+    "project manager",
+    "recent projects",
+    "git",
+    "productivity",
+    "file tracker"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:projectList",
+    "onCommand:project-tracker.searchProjects",
+    "onCommand:project-tracker.openProject"
+  ],
+  "main": "./extension.js",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "project-tracker-sidebar",
+          "title": "Projects",
+          "icon": "assets/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "project-tracker-sidebar": [
+        {
+          "id": "projectList",
+          "name": "Recent Projects",
+          "icon": "$(history)"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "project-tracker.openProject",
+        "title": "Open Project"
+      },
+      {
+        "command": "project-tracker.searchProjects",
+        "title": "Search Recent Projects",
+        "icon": "$(search)"
+      },
+      {
+        "command": "project-tracker.addProjectFolder",
+        "title": "Add Folder to Projects",
+        "icon": "$(add)"
+      },
+      {
+        "command": "project-tracker.removeProject",
+        "title": "Remove from List",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "project-tracker.refreshList",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "project-tracker.pinProject",
+        "title": "Pin Project",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "project-tracker.unpinProject",
+        "title": "Unpin Project",
+        "icon": "$(pinned)"
+      },
+      {
+        "command": "project-tracker.setProjectIcon",
+        "title": "Set Project Icon",
+        "icon": "$(symbol-file)"
+      },
+      {
+        "command": "project-tracker.setProjectColor",
+        "title": "Set Project Color",
+        "icon": "$(color-mode)"
+      },
+      {
+        "command": "project-tracker.checkForUpdate",
+        "title": "Check for Updates"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "project-tracker.refreshList",
+          "group": "navigation",
+          "when": "view == projectList"
+        },
+        {
+          "command": "project-tracker.addProjectFolder",
+          "group": "navigation",
+          "when": "view == projectList"
+        },
+        {
+          "command": "project-tracker.searchProjects",
+          "group": "navigation",
+          "when": "view == projectList"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "project-tracker.removeProject",
+          "group": "inline",
+          "when": "view == projectList"
+        },
+        {
+          "command": "project-tracker.removeProject",
+          "group": "1_modification",
+          "when": "view == projectList"
+        },
+        {
+          "command": "project-tracker.pinProject",
+          "group": "inline",
+          "when": "view == projectList && viewItem == project"
+        },
+        {
+          "command": "project-tracker.unpinProject",
+          "group": "inline",
+          "when": "view == projectList && viewItem == projectPinned"
+        },
+        {
+          "command": "project-tracker.setProjectIcon",
+          "group": "1_modification",
+          "when": "view == projectList && (viewItem == project || viewItem == projectPinned)"
+        },
+        {
+          "command": "project-tracker.setProjectColor",
+          "group": "1_modification",
+          "when": "view == projectList && (viewItem == project || viewItem == projectPinned)"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "package": "vsce package",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "skdsam",
+  "license": "MIT",
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skdsam/antigravity-projects-recall.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3"
+  }
+}

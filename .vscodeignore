@@ -1,0 +1,13 @@
+.git/**
+node_modules/**
+*.vsix
+*.bat
+*.py
+.vscodeignore
+.gitignore
+register_extension.py
+update_registration.py
+update_registration.js
+test_metadata.js
+debug_read_ext.js
+ext_entry.json

@@ -1,0 +1,15 @@
+﻿{
+  "identifier": {
+    "id": "skdsam.project-tracker"
+  },
+  "version": "1.0.0",
+  "location": {
+    "$mid": 1,
+    "fsPath": "c:\\Users\\skdso\\.antigravity\\extensions\\skdsam.project-tracker-1.0.0",
+    "_sep": 1,
+    "external": "file:///c%3A/Users/skdso/.antigravity/extensions/skdsam.project-tracker-1.0.0",
+    "path": "/c:/Users/skdso/.antigravity/extensions/skdsam.project-tracker-1.0.0",
+    "scheme": "file"
+  },
+  "relativeLocation": "skdsam.project-tracker-1.0.0"
+}
