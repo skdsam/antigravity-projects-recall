@@ -688,7 +688,7 @@ function activate(context) {
         });
 
         if (changed) {
-            saveProjects(projects.slice(0, 50));
+            saveProjects(projects.slice(0, 100));
             projectDataProvider.refresh();
         }
     }
@@ -808,7 +808,7 @@ function activate(context) {
                         lastAccessed: new Date().toISOString(),
                         pinned: false
                     });
-                    saveProjects(projects.slice(0, 50));
+                    saveProjects(projects.slice(0, 100));
                     projectDataProvider.refresh();
 
                     const open = await vscode.window.showInformationMessage(`Cloned ${repo.name} (${repo.branch || 'default'}) successfullly. Open now?`, 'Yes', 'No');
@@ -879,8 +879,58 @@ function activate(context) {
                 const item = projects.splice(existingIndex, 1)[0];
                 projects.unshift(item);
             }
-            saveProjects(projects.slice(0, 50));
+            saveProjects(projects.slice(0, 100));
             projectDataProvider.refresh();
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('project-tracker.addProjectWorkspace', async () => {
+        const result = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select Parent Folder (Batch Import)'
+        });
+        if (result && result[0]) {
+            const parentFolderPath = result[0].fsPath;
+            try {
+                const items = fs.readdirSync(parentFolderPath, { withFileTypes: true });
+                const subfolders = items.filter(item => item.isDirectory() && !item.name.startsWith('.')).map(item => item.name);
+                
+                if (subfolders.length === 0) {
+                    vscode.window.showInformationMessage('No valid subfolders found in the selected directory.');
+                    return;
+                }
+
+                let projects = getProjects();
+                if (projects === null) projects = [];
+                let addedCount = 0;
+
+                subfolders.forEach(subfolderName => {
+                    const subfolderPath = path.join(parentFolderPath, subfolderName);
+                    const existingIndex = projects.findIndex(p => p.path.toLowerCase() === subfolderPath.toLowerCase());
+                    
+                    if (existingIndex === -1) {
+                        projects.unshift({
+                            name: subfolderName,
+                            path: subfolderPath,
+                            lastAccessed: new Date().toISOString(),
+                            pinned: false
+                        });
+                        addedCount++;
+                    }
+                });
+
+                if (addedCount > 0) {
+                    saveProjects(projects.slice(0, 100)); // Increase slice to 100 to accommodate batch imports
+                    projectDataProvider.refresh();
+                    vscode.window.showInformationMessage(`Successfully imported ${addedCount} project(s) from ${path.basename(parentFolderPath)}.`);
+                } else {
+                    vscode.window.showInformationMessage('No new projects to import (all subfolders are already tracked).');
+                }
+            } catch (err) {
+                vscode.window.showErrorMessage(`Failed to read parent directory: ${err.message}`);
+            }
         }
     }));
 

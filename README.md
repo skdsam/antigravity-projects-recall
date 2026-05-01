@@ -5,6 +5,7 @@ Project Tracker is a powerful extension designed to streamline your workspace ma
 ## 🚀 Features
 
 - **📂 Automatic Project Tracking**: Never lose track of where you've been. The extension automatically maintains a history of folders used as projects.
+- **📁 Batch Import**: Select a parent folder (like your "Scratch" folder) and automatically import all its subfolders as individual projects in one go.
 - **📌 Pinned Projects**: Keep your most important work at the top. Mark projects as pinned for instant access regardless of how recently they were opened.
 - **🌿 Deep Git Integration**: 
   - Real-time branch detection.
@@ -46,6 +47,7 @@ Project Tracker is a powerful extension designed to streamline your workspace ma
 |---------|-------|-------------|
 | `project-tracker.searchProjects` | **Search Recent Projects** | Filter and open projects from your history. |
 | `project-tracker.addProjectFolder` | **Add Folder to Projects** | Manually add a folder to the tracker. |
+| `project-tracker.addProjectWorkspace` | **Add Parent Folder (Batch Import)** | Add a parent folder and automatically import its subfolders as projects. |
 | `project-tracker.refreshList` | **Refresh** | Manually refresh the project list status. |
 | `project-tracker.setProjectIcon` | **Set Project Icon** | Choose a custom icon for the project. |
 | `project-tracker.setProjectColor` | **Set Project Color** | Choose a custom theme color for the icon. |
